@@ -1,0 +1,125 @@
+/* Container styling tightly locked */
+.gridSection {
+  padding: 80px 0;
+  background-color: #fcfbf9;
+  color: #111;
+  width: 100% !important;
+  display: block !important;
+}
+
+.container {
+  max-width: 1440px;
+  margin: 0 auto;
+  padding: 0 4%;
+  width: 100% !important;
+  box-sizing: border-box !important;
+}
+
+/* Header styling */
+.eyebrow {
+  text-transform: uppercase;
+  letter-spacing: 0.3em;
+  font-size: 11px;
+  color: #666;
+  display: block;
+  margin-bottom: 12px;
+}
+
+.heading {
+  font-size: 32px;
+  font-weight: 300;
+  letter-spacing: -0.02em;
+  margin: 0;
+}
+
+/* Bulletproof Asymmetric Grid Layout */
+.grid {
+  display: grid !important;
+  grid-template-columns: 1.2fr 0.6fr 1.2fr !important;
+  grid-template-rows: auto auto !important;
+  gap: 32px !important;
+  width: 100% !important;
+  box-sizing: border-box !important;
+  align-items: stretch !important;
+}
+
+/* Base Card structure forced block */
+.galleryCard {
+  display: flex !important;
+  flex-direction: column !important;
+  cursor: pointer;
+  transition: opacity 0.4s ease;
+  position: relative !important;
+  width: 100% !important;
+  box-sizing: border-box !important;
+}
+
+.imgWrapper {
+  overflow: hidden !important;
+  background-color: #eaeaea;
+  position: relative !important;
+  width: 100% !important;
+}
+
+.galleryImg {
+  width: 100% !important;
+  height: 100% !important;
+  object-fit: cover !important;
+  display: block !important;
+  transition: transform 0.6s cubic-bezier(0.25, 1, 0.5, 1);
+}
+
+/* Zoom Effect on Hover */
+.galleryCard:hover .galleryImg {
+  transform: scale(1.04) !important;
+}
+
+/* Explore Overlay Absolute Fix */
+.exploreOverlay {
+  position: absolute !important;
+  bottom: 20px !important;
+  left: 20px !important;
+  opacity: 0 !important;
+  transform: translateY(10px) !important;
+  transition: all 0.4s cubic-bezier(0.25, 1, 0.5, 1) !important;
+  font-size: 10px;
+  letter-spacing: 0.15em;
+  color: #fff !important;
+  background: rgba(17, 17, 17, 0.75) !important;
+  padding: 8px 14px !important;
+  backdrop-filter: blur(4px) !important;
+  text-transform: uppercase;
+  z-index: 10 !important;
+}
+
+.galleryCard:hover .exploreOverlay {
+  opacity: 1 !important;
+  transform: translateY(0) !important;
+}
+
+/* Text Line Reveal Effect */
+.categoryTitle {
+  position: relative !important;
+  display: inline-block !important;
+  font-size: 11px;
+  letter-spacing: 0.2em;
+  margin-top: 16px;
+  font-weight: 400;
+  text-transform: uppercase;
+}
+
+.categoryTitle::after {
+  content: '';
+  position: absolute;
+  width: 100%;
+  transform: scaleX(0);
+  height: 1px;
+  bottom: -4px;
+  left: 0;
+  background-color: #111;
+  transform-origin: bottom left;
+  transition: transform 0.4s ease-out;
+}
+.galleryCard:hover .categoryTitle::after {
+  transform: scaleX(1);
+}
