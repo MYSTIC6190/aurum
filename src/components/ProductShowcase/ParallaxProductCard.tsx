@@ -22,7 +22,7 @@ export default function ParallaxProductCard({ product }: { product: Product }) {
 
       <span className={styles.categoryLabel}>{product.category}</span>
       <p className={styles.productName}>{product.name}</p>
-      <p className={styles.price}>₹ {product.price.toLocaleString('en-IN')}</p>
+      <p className={styles.price}>₹ {product.price.toLocaleString()}</p>
     </div>
   )
 }

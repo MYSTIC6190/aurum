@@ -1,0 +1,608 @@
+diff --git a/src/App.tsx b/src/App.tsx
+index 1f23628..75ed009 100644
+--- a/src/App.tsx
++++ b/src/App.tsx
+@@ -1,13 +1,16 @@
+ import Nav from './components/Nav/Nav'
+ import Hero from './components/Hero/Hero'
++import ProductShowcase from './components/ProductShowcase/ProductShowcase'
+ import DomeGallery from './components/Gallery/DomeGallery'
+ import Footer from './components/Footer/Footer'
+ import { useLenis } from './hooks/useLenis'
+ 
+ // Single-page AURUM layout, top to bottom:
+-//   Nav + Hero   → the fixed nav over the full-screen hero
+-//   DomeGallery  → the WebGL photo dome (centrepiece, drag to explore)
+-//   Footer       → closing footer
++//   Nav + Hero       → the fixed nav over the full-screen hero
++//   ProductShowcase  → "Our Pieces" — scroll-pinned product carousel with
++//                       the radial clock dial as its category filter
++//   DomeGallery      → the WebGL photo dome (centrepiece, drag to explore)
++//   Footer           → closing footer
+ function App() {
+   // Smooth scrolling for the whole page
+   useLenis()
+@@ -16,6 +19,7 @@ function App() {
+     <>
+       <Nav />
+       <Hero />
++      <ProductShowcase />
+       <DomeGallery />
+       <Footer />
+     </>
+diff --git a/src/components/ClockMenu/ClockMenu.tsx b/src/components/ClockMenu/ClockMenu.tsx
+index b97138d..4f386eb 100644
+--- a/src/components/ClockMenu/ClockMenu.tsx
++++ b/src/components/ClockMenu/ClockMenu.tsx
+@@ -2,22 +2,39 @@ import { useEffect, useState } from 'react'
+ import styles from './ClockMenu.module.css'
+ 
+ /**
+- * ClockMenu — the shared radial "clock" dial navigation from meech213.com.
++ * ClockMenu — the shared radial "clock" dial ported from meech213.com.
+  *
+- * Five pages sit at fixed points along an arc anchored at the bottom-centre of
+- * the viewport. The active page (current route) lights up in place, and the
+- * clock hand rotates to point directly at it. Slot geometry + styling are
+- * lifted from the original.
++ * Five items sit at fixed points along an arc anchored at the bottom-centre
++ * of the viewport. The active item lights up in place, and the clock hand
++ * rotates to point directly at it. Slot geometry + styling are lifted from
++ * the original.
++ *
++ * Two modes:
++ *  - Uncontrolled (default, no props) — the original site-wide nav. Items
++ *    are pages, the active one comes from the URL hash, and clicking
++ *    navigates via hash change. Used by DomeGallery.
++ *  - Controlled (pass `items` + `activeKey` + `onSelect`) — the dial becomes
++ *    a plain selector: no hash routing, the caller owns the active state and
++ *    is told when a slot is picked. Used by ProductShowcase to drive its
++ *    category filter.
+  */
+ 
+-type Page = {
++export type ClockDialItem = {
+   key: string
+   label: string
+-  route: string
+-  sub: string[]
++  sub?: string[]
+   slot: { left: number; top: number } // % within the dial viewport
+ }
+ 
++type ClockMenuProps = {
++  items?: ClockDialItem[]
++  activeKey?: string
++  onSelect?: (key: string) => void
++  ariaLabel?: string
++}
++
++type Page = ClockDialItem & { route: string }
++
+ // Each page pinned to one arc slot (positions from the original nth-child rules).
+ const PAGES: Page[] = [
+   { key: 'about', label: 'About', route: 'about', sub: [], slot: { left: 12.14, top: 79.47 } },
+@@ -51,52 +68,72 @@ function currentKey() {
+   return routeToKey[route] ?? 'necklaces'
+ }
+ 
+-export default function ClockMenu() {
+-  const [activeKey, setActiveKey] = useState(currentKey())
++export default function ClockMenu({ items, activeKey: activeKeyProp, onSelect, ariaLabel = 'Primary' }: ClockMenuProps = {}) {
++  const controlled = items !== undefined
++  const [hashKey, setHashKey] = useState(currentKey())
+ 
+   useEffect(() => {
+-    const onHash = () => setActiveKey(currentKey())
++    if (controlled) return
++    const onHash = () => setHashKey(currentKey())
+     window.addEventListener('hashchange', onHash)
+     return () => window.removeEventListener('hashchange', onHash)
+-  }, [])
++  }, [controlled])
+ 
+-  const activePage = PAGES.find((p) => p.key === activeKey) ?? PAGES[2]
++  const dialItems: ClockDialItem[] = items ?? PAGES
++  const activeKey = controlled ? activeKeyProp : hashKey
++  const activePage = dialItems.find((p) => p.key === activeKey) ?? dialItems[Math.floor(dialItems.length / 2)]
+   const aim = aimDeg(activePage.slot)
+ 
+-  const go = (route: string) => (e: React.MouseEvent) => {
++  const go = (page: Page) => (e: React.MouseEvent) => {
+     e.preventDefault()
+-    window.location.hash = route ? `#/${route}` : '#/'
++    if (controlled) {
++      onSelect?.(page.key)
++      return
++    }
++    window.location.hash = page.route ? `#/${page.route}` : '#/'
+   }
+ 
+   return (
+-    <nav className={styles.clockMenu} aria-label="Primary">
++    <nav className={styles.clockMenu} aria-label={ariaLabel}>
+       <div className={styles.viewport}>
+         <ul className={styles.dial}>
+-          {PAGES.map((page) => {
+-            const isActive = page.key === activeKey
++          {dialItems.map((item) => {
++            const page = item as Page
++            const isActive = item.key === activeKey
+             return (
+               <li
+-                key={page.key}
++                key={item.key}
+                 className={styles.item}
+                 data-active={isActive}
+                 style={
+                   {
+-                    '--slot-left': `${page.slot.left}%`,
+-                    '--slot-top': `${page.slot.top}%`,
++                    '--slot-left': `${item.slot.left}%`,
++                    '--slot-top': `${item.slot.top}%`,
+                   } as React.CSSProperties
+                 }
+               >
+-                <a
+-                  className={styles.primaryLink}
+-                  href={page.route ? `#/${page.route}` : '#/'}
+-                  aria-current={isActive ? 'page' : undefined}
+-                  onClick={go(page.route)}
+-                >
+-                  {page.label}
+-                </a>
+-                {isActive && page.sub.length > 0 && (
++                {controlled ? (
++                  <button
++                    type="button"
++                    className={styles.primaryLink}
++                    aria-current={isActive ? 'true' : undefined}
++                    onClick={go(page)}
++                  >
++                    {item.label}
++                  </button>
++                ) : (
++                  <a
++                    className={styles.primaryLink}
++                    href={page.route ? `#/${page.route}` : '#/'}
++                    aria-current={isActive ? 'page' : undefined}
++                    onClick={go(page)}
++                  >
++                    {item.label}
++                  </a>
++                )}
++                {isActive && item.sub && item.sub.length > 0 && (
+                   <ul className={styles.subnavPanel}>
+-                    {page.sub.map((label) => (
++                    {item.sub.map((label) => (
+                       <li key={label} className={styles.subnavItem}>
+                         <button type="button" className={styles.subnavLink}>
+                           {label}
+@@ -110,7 +147,7 @@ export default function ClockMenu() {
+           })}
+         </ul>
+ 
+-        {/* Hands point at the active page's slot; --aim drives the rotation. */}
++        {/* Hands point at the active item's slot; --aim drives the rotation. */}
+         <div className={styles.clock} aria-hidden="true" style={{ '--aim': aim } as React.CSSProperties}>
+           <span className={`${styles.hand} ${styles.handMinute}`} />
+           <span className={`${styles.hand} ${styles.handHour}`} />
+diff --git a/src/components/ProductShowcase/ProductShowcase.module.css b/src/components/ProductShowcase/ProductShowcase.module.css
+index c7b2977..5defe66 100644
+--- a/src/components/ProductShowcase/ProductShowcase.module.css
++++ b/src/components/ProductShowcase/ProductShowcase.module.css
+@@ -1,15 +1,38 @@
++/* ============================================================
++   Scroll-pinned track (same pattern as DomeGallery/Gallery.module.css):
++   .section provides the tall scroll distance, .sticky pins the actual
++   carousel + dial to the viewport while you scroll through it. Vertical
++   scroll progress drives the horizontal card position, and once you've
++   scrolled past the whole row the page continues normally to whatever
++   comes next — the section never lets page-scroll "leak" through it
++   uncontrolled.
++   ============================================================ */
+ .section {
+-  padding: 16px 0 24px;
++  position: relative;
++  width: 100%;
++  background-color: var(--bg-primary);
++}
++
++.sticky {
++  position: sticky;
++  top: 0;
++  height: 100svh;
++  overflow: hidden;
++  display: flex;
++  flex-direction: column;
++  justify-content: center;
+ }
+ 
+ .header {
+   display: flex;
+   justify-content: space-between;
+   align-items: flex-end;
+-  margin-bottom: var(--space-3);
+-  padding: 0 var(--container-padding);
++  padding-top: var(--space-4);
+   padding-bottom: var(--space-2);
+-  border-bottom: 1px solid var(--border-default);
++  position: absolute;
++  top: 0;
++  left: 0;
++  right: 0;
+ }
+ 
+ .title {
+@@ -31,41 +54,10 @@
+   margin-top: var(--space-1);
+ }
+ 
+-.filters {
+-  display: flex;
+-  gap: var(--space-4);
+-  padding-bottom: var(--space-1);
+-}
+-
+-.filterTab {
+-  background: none;
+-  border: none;
+-  border-bottom: 1px solid transparent;
+-  padding: var(--space-1) 0;
+-  font-family: var(--font-body);
+-  font-size: var(--text-small);
+-  letter-spacing: var(--tracking-caps);
+-  text-transform: uppercase;
+-  color: var(--text-secondary);
+-  cursor: pointer;
+-  outline: none;
+-  transition: color var(--duration-fast) var(--ease-out),
+-              border-color var(--duration-fast) var(--ease-out);
+-}
+-
+-.filterTab:hover {
+-  color: var(--text-primary);
+-}
+-
+-.filterTab.active {
+-  color: var(--text-primary);
+-  border-bottom: 2px solid var(--text-accent);
+-}
+-
+ .scrollWrapper {
+   overflow-x: hidden;
+   overflow-y: visible;
+-  padding: 300px 0 330px;
++  padding: 160px 0 220px;
+   cursor: grab;
+   user-select: none;
+   -webkit-user-select: none;
+@@ -73,6 +65,20 @@
+   perspective: 1400px;
+ }
+ 
++/* Radial clock-menu docked to the bottom of the sticky viewport, same
++   pattern as DomeGallery's .clockDock — visible only while this
++   section is pinned, never over neighboring sections. */
++.clockDock {
++  position: absolute;
++  left: 0;
++  right: 0;
++  bottom: 0;
++  z-index: 5;
++  display: flex;
++  justify-content: center;
++  pointer-events: none;
++}
++
+ .scrollWrapper.dragging {
+   cursor: grabbing;
+ }
+diff --git a/src/components/ProductShowcase/ProductShowcase.tsx b/src/components/ProductShowcase/ProductShowcase.tsx
+index 0e64c3e..5c53a9a 100644
+--- a/src/components/ProductShowcase/ProductShowcase.tsx
++++ b/src/components/ProductShowcase/ProductShowcase.tsx
+@@ -2,9 +2,20 @@ import { useState, useRef, useCallback, useEffect } from 'react'
+ import { PRODUCTS } from '@/data/products'
+ import type { Product } from '@/types'
+ import ProductCard from './ProductCard'
++import ClockMenu, { type ClockDialItem } from '../ClockMenu/ClockMenu'
+ import styles from './ProductShowcase.module.css'
+ 
+-const FILTERS = ['All', 'Rings', 'Necklaces', 'Bracelets', 'Earrings']
++// Category dial — reuses the exact arc slots from the site-wide ClockMenu
++// (About/Ring/Necklaces/Earrings/Bracelets) but repurposed as a controlled
++// filter selector: "About" is dropped (it already lives in the footer /
++// site nav) and its slot is reused for "All".
++const CATEGORY_ITEMS: ClockDialItem[] = [
++  { key: 'All', label: 'All', slot: { left: 12.14, top: 79.47 } },
++  { key: 'Rings', label: 'Rings', slot: { left: 23.13, top: 47.23 } },
++  { key: 'Necklaces', label: 'Necklaces', slot: { left: 50, top: 32 } },
++  { key: 'Earrings', label: 'Earrings', slot: { left: 76.87, top: 47.23 } },
++  { key: 'Bracelets', label: 'Bracelets', slot: { left: 87.86, top: 79.47 } },
++]
+ 
+ const LERP_EASE = 0.038
+ const DRAG_SPEED = 0.75
+@@ -12,6 +23,12 @@ const FRICTION = 0.978
+ const MAX_VELOCITY = 35 // px/frame cap so a hard flick can't launch it too fast
+ const VELOCITY_SAMPLE_WINDOW = 120 // ms
+ 
++// How far a manual drag can nudge the row away from the scroll-driven
++// position. Page scroll is the primary driver now (see the pinned-track
++// note below); dragging just offsets it a little, the same way DomeGallery
++// layers a manual drag offset on top of its scroll-driven orbit angle.
++const DRAG_NUDGE_MAX = 320
++
+ // ── Wheel/coverflow feel ──
+ // As a card's center moves away from the wrapper's center, it curves
+ // upward on an arc and spins slightly in 3D — like it's riding the
+@@ -22,13 +39,21 @@ const MAX_ROTATE_Y = 34 // deg — bigger = stronger 3D spin, more depth
+ const ARC_HEIGHT = 75 // px — bigger = more pronounced wheel-rim arc
+ 
+ // How many cards get cloned onto each end of the row, so that on
+-// first load — before the user has dragged at all — there are
++// first load — before the user has scrolled at all — there are
+ // already real product images peeking in on the left of the
+-// center card, not empty space. Dragging left reveals them fully.
++// center card, not empty space.
+ const EDGE_CLONE_COUNT = 3
+ 
++// The section is a tall scroll "track" (like DomeGallery's gallerySection):
++// the inner carousel is pinned via position:sticky while you scroll through
++// this height, and vertical scroll progress drives horizontal card movement.
++// Once you've scrolled past it, the page continues normally to the next
++// section — the carousel never lets the page scroll "through" it uncontrolled.
++const TRACK_HEIGHT_VH = 240
++
+ export default function ProductShowcase() {
+   const [activeFilter, setActiveFilter] = useState('All')
++  const sectionRef = useRef<HTMLElement>(null)
+   const wrapperRef = useRef<HTMLDivElement>(null)
+   const gridRef = useRef<HTMLDivElement>(null)
+   const cardRefs = useRef<(HTMLDivElement | null)[]>([])
+@@ -37,11 +62,14 @@ export default function ProductShowcase() {
+   const current = useRef(0)
+   const target = useRef(0)
+   const maxScroll = useRef(0)
++  const openingOffset = useRef(0)
++  const progressOffset = useRef(0)
+   const rafId = useRef<number | null>(null)
+ 
+   const isDragging = useRef(false)
+   const startX = useRef(0)
+-  const startTarget = useRef(0)
++  const startDragOffset = useRef(0)
++  const dragOffset = useRef(0)
+   const velocity = useRef(0)
+   const samples = useRef<{ x: number; t: number }[]>([])
+ 
+@@ -74,7 +102,14 @@ export default function ProductShowcase() {
+     cardMeta.current = cardRefs.current.map((el) =>
+       el ? { left: el.offsetLeft, width: el.offsetWidth } : { left: 0, width: 0 }
+     )
+-  }, [])
++
++    const realStartIndex = filtered.length > EDGE_CLONE_COUNT ? EDGE_CLONE_COUNT : 0
++    const meta = cardMeta.current[realStartIndex]
++    if (meta) {
++      const PEEK = 90 // px of the previous card left visible at the start
++      openingOffset.current = clamp(meta.left - PEEK)
++    }
++  }, [filtered.length])
+ 
+   // Applies the wheel-curve transform to every card based on where its
+   // center currently sits relative to the wrapper's center. Written
+@@ -102,16 +137,30 @@ export default function ProductShowcase() {
+     })
+   }, [])
+ 
++  // Continuous loop (mirrors DomeGallery): every frame, re-derive the
++  // scroll-driven position from how far the pinned track has scrolled,
++  // add any manual drag nudge on top, then ease the rendered position
++  // toward that target.
+   const tick = useCallback(() => {
++    const section = sectionRef.current
++    if (section) {
++      const rect = section.getBoundingClientRect()
++      const scrollable = section.offsetHeight - window.innerHeight
++      const progress = scrollable > 0 ? Math.min(1, Math.max(0, -rect.top / scrollable)) : 0
++      progressOffset.current = openingOffset.current + progress * (maxScroll.current - openingOffset.current)
++    }
++
+     if (!isDragging.current) {
+       if (Math.abs(velocity.current) > 0.05) {
+-        target.current = clamp(target.current + velocity.current)
++        dragOffset.current += velocity.current
+         velocity.current *= FRICTION
+       } else {
+         velocity.current = 0
+       }
++      dragOffset.current = Math.max(-DRAG_NUDGE_MAX, Math.min(DRAG_NUDGE_MAX, dragOffset.current))
+     }
+ 
++    target.current = clamp(progressOffset.current + dragOffset.current)
+     current.current += (target.current - current.current) * LERP_EASE
+ 
+     const grid = gridRef.current
+@@ -120,51 +169,20 @@ export default function ProductShowcase() {
+     }
+     applyWheelTransforms()
+ 
+-    const settled =
+-      !isDragging.current &&
+-      Math.abs(velocity.current) < 0.05 &&
+-      Math.abs(target.current - current.current) < 0.05
+-
+-    if (!settled) {
+-      rafId.current = requestAnimationFrame(tick)
+-    } else {
+-      current.current = target.current
+-      if (grid) grid.style.transform = `translate3d(${-current.current}px, 0, 0)`
+-      applyWheelTransforms()
+-      rafId.current = null
+-    }
++    rafId.current = requestAnimationFrame(tick)
+   }, [applyWheelTransforms])
+ 
+-  const ensureLoop = useCallback(() => {
+-    if (rafId.current === null) {
+-      rafId.current = requestAnimationFrame(tick)
+-    }
+-  }, [tick])
+-
+-  // After (re)measuring, scroll so the first *real* card sits near
+-  // the left with only a slice of the cloned "peek" card showing
+-  // before it — this is what makes the row open with images on both
+-  // sides of center instead of starting flush against empty space.
+-  const scrollToOpeningPosition = useCallback(() => {
+-    const realStartIndex = filtered.length > EDGE_CLONE_COUNT ? EDGE_CLONE_COUNT : 0
+-    const meta = cardMeta.current[realStartIndex]
+-    if (!meta) return
+-    const PEEK = 90 // px of the previous card left visible on load
+-    const offset = clamp(meta.left - PEEK)
+-    target.current = offset
+-    current.current = offset
+-  }, [filtered.length])
+-
+   useEffect(() => {
+     measure()
+-    scrollToOpeningPosition()
+     applyWheelTransforms()
+     window.addEventListener('resize', measure)
++    rafId.current = requestAnimationFrame(tick)
+     return () => {
+       window.removeEventListener('resize', measure)
+       if (rafId.current !== null) cancelAnimationFrame(rafId.current)
+     }
+-  }, [measure, applyWheelTransforms, scrollToOpeningPosition])
++    // eslint-disable-next-line react-hooks/exhaustive-deps
++  }, [])
+ 
+   const onPointerDown = useCallback((e: React.PointerEvent) => {
+     const wrapper = wrapperRef.current
+@@ -172,17 +190,19 @@ export default function ProductShowcase() {
+     isDragging.current = true
+     velocity.current = 0
+     startX.current = e.clientX
+-    startTarget.current = target.current
++    startDragOffset.current = dragOffset.current
+     samples.current = [{ x: e.clientX, t: performance.now() }]
+     wrapper.classList.add(styles.dragging)
+     wrapper.setPointerCapture(e.pointerId)
+-    ensureLoop()
+-  }, [ensureLoop])
++  }, [])
+ 
+   const onPointerMove = useCallback((e: React.PointerEvent) => {
+     if (!isDragging.current) return
+     const dx = (e.clientX - startX.current) * DRAG_SPEED
+-    target.current = clamp(startTarget.current - dx)
++    dragOffset.current = Math.max(
++      -DRAG_NUDGE_MAX,
++      Math.min(DRAG_NUDGE_MAX, startDragOffset.current - dx)
++    )
+ 
+     const now = performance.now()
+     samples.current.push({ x: e.clientX, t: now })
+@@ -208,61 +228,60 @@ export default function ProductShowcase() {
+         velocity.current = Math.max(-MAX_VELOCITY, Math.min(MAX_VELOCITY, raw))
+       }
+     }
+-    ensureLoop()
+-  }, [ensureLoop])
++  }, [])
+ 
+   const handleFilter = (filter: string) => {
+     setActiveFilter(filter)
+     velocity.current = 0
++    dragOffset.current = 0
+     requestAnimationFrame(() => {
+       measure()
+-      scrollToOpeningPosition()
+       applyWheelTransforms()
+     })
+   }
+ 
+   return (
+-    <section className={`section container ${styles.section}`}>
+-      <div className={styles.header}>
+-        <div>
+-          <h2 className={styles.title}>Our Pieces</h2>
+-          <p className={styles.subtitle}>Fine Jewellery</p>
++    <section ref={sectionRef} className={styles.section} style={{ height: `${TRACK_HEIGHT_VH}svh` }}>
++      <div className={styles.sticky}>
++        <div className={`container ${styles.header}`}>
++          <div>
++            <h2 className={styles.title}>Our Pieces</h2>
++            <p className={styles.subtitle}>Fine Jewellery</p>
++          </div>
+         </div>
+ 
+-        <div className={styles.filters}>
+-          {FILTERS.map((filter) => (
+-            <button
+-              key={filter}
+-              className={`${styles.filterTab} ${activeFilter === filter ? styles.active : ''}`}
+-              onClick={() => handleFilter(filter)}
+-            >
+-              {filter}
+-            </button>
+-          ))}
++        <div
++          className={styles.scrollWrapper}
++          ref={wrapperRef}
++          onPointerDown={onPointerDown}
++          onPointerMove={onPointerMove}
++          onPointerUp={endDrag}
++          onPointerLeave={endDrag}
++        >
++          <div className={styles.grid} ref={gridRef}>
++            {displayItems.map((product, index) => (
++              <div
++                key={product._slotKey}
++                ref={(el) => { cardRefs.current[index] = el }}
++                className={styles.wheelCardSlot}
++                aria-hidden={product._slotKey.startsWith('real-') ? undefined : true}
++              >
++                <ProductCard product={product} index={index} />
++              </div>
++            ))}
++          </div>
+         </div>
+-      </div>
+ 
+-      <div
+-        className={styles.scrollWrapper}
+-        ref={wrapperRef}
+-        onPointerDown={onPointerDown}
+-        onPointerMove={onPointerMove}
+-        onPointerUp={endDrag}
+-        onPointerLeave={endDrag}
+-      >
+-        <div className={styles.grid} ref={gridRef}>
+-          {displayItems.map((product, index) => (
+-            <div
+-              key={product._slotKey}
+-              ref={(el) => { cardRefs.current[index] = el }}
+-              className={styles.wheelCardSlot}
+-              aria-hidden={product._slotKey.startsWith('real-') ? undefined : true}
+-            >
+-              <ProductCard product={product} index={index} />
+-            </div>
+-          ))}
++        {/* Radial clock-menu, repurposed here as the category filter. */}
++        <div className={styles.clockDock}>
++          <ClockMenu
++            items={CATEGORY_ITEMS}
++            activeKey={activeFilter}
++            onSelect={handleFilter}
++            ariaLabel="Filter by category"
++          />
+         </div>
+       </div>
+     </section>
+   )
+-}
+\ No newline at end of file
++}

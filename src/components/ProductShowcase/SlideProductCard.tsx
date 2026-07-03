@@ -56,7 +56,7 @@ export default function DragProductCard({
 
       <span className={styles.categoryLabel}>{product.category}</span>
       <p className={styles.productName}>{product.name}</p>
-      <p className={styles.price}>₹ {product.price.toLocaleString('en-IN')}</p>
+      <p className={styles.price}>₹ {Number(product.price).toLocaleString('en-IN')}</p>
     </div>
   )
 }

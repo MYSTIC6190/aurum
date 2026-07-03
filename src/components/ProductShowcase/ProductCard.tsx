@@ -1,4 +1,4 @@
-import type { Product } from '@/types'
+import type { Product } from '../../types'
 import SlideProductCard from './SlideProductCard'
 import GalleryProductCard from './GalleryProductCard'
 

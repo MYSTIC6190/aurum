@@ -76,7 +76,7 @@ export default function GalleryProductCard({
           <div className={`${styles.tiltFace} ${styles.tiltBack}`}>
             <span className={styles.categoryLabel}>{product.category}</span>
             <p className={styles.tiltBackName}>{product.name}</p>
-            <p className={styles.tiltBackPrice}>₹ {product.price.toLocaleString('en-IN')}</p>
+            <p className={styles.tiltBackPrice}>₹ {new Intl.NumberFormat('en-IN').format(Number(product.price))}</p>
             <button className={styles.tiltBackCta}>Quick Add</button>
           </div>
         </div>
@@ -84,7 +84,7 @@ export default function GalleryProductCard({
 
       <span className={styles.categoryLabel}>{product.category}</span>
       <p className={styles.productName}>{product.name}</p>
-      <p className={styles.price}>₹ {product.price.toLocaleString('en-IN')}</p>
+      <p className={styles.price}>₹ {new Intl.NumberFormat('en-IN').format(Number(product.price))}</p>
     </div>
   )
 }

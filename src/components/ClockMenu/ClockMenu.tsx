@@ -2,21 +2,38 @@ import { useEffect, useState } from 'react'
 import styles from './ClockMenu.module.css'
 
 /**
- * ClockMenu — the shared radial "clock" dial navigation from meech213.com.
+ * ClockMenu — the shared radial "clock" dial ported from meech213.com.
  *
- * Five pages sit at fixed points along an arc anchored at the bottom-centre of
- * the viewport. The active page (current route) lights up in place, and the
- * clock hand rotates to point directly at it. Slot geometry + styling are
- * lifted from the original.
+ * Five items sit at fixed points along an arc anchored at the bottom-centre
+ * of the viewport. The active item lights up in place, and the clock hand
+ * rotates to point directly at it. Slot geometry + styling are lifted from
+ * the original.
+ *
+ * Two modes:
+ *  - Uncontrolled (default, no props) — the original site-wide nav. Items
+ *    are pages, the active one comes from the URL hash, and clicking
+ *    navigates via hash change. Used by DomeGallery.
+ *  - Controlled (pass `items` + `activeKey` + `onSelect`) — the dial becomes
+ *    a plain selector: no hash routing, the caller owns the active state and
+ *    is told when a slot is picked. Used by ProductShowcase to drive its
+ *    category filter.
  */
 
-type Page = {
+export type ClockDialItem = {
   key: string
   label: string
-  route: string
-  sub: string[]
+  sub?: string[]
   slot: { left: number; top: number } // % within the dial viewport
 }
+
+type ClockMenuProps = {
+  items?: ClockDialItem[]
+  activeKey?: string
+  onSelect?: (key: string) => void
+  ariaLabel?: string
+}
+
+type Page = ClockDialItem & { route: string }
 
 // Each page pinned to one arc slot (positions from the original nth-child rules).
 const PAGES: Page[] = [
@@ -51,52 +68,72 @@ function currentKey() {
   return routeToKey[route] ?? 'necklaces'
 }
 
-export default function ClockMenu() {
-  const [activeKey, setActiveKey] = useState(currentKey())
+export default function ClockMenu({ items, activeKey: activeKeyProp, onSelect, ariaLabel = 'Primary' }: ClockMenuProps = {}) {
+  const controlled = items !== undefined
+  const [hashKey, setHashKey] = useState(currentKey())
 
   useEffect(() => {
-    const onHash = () => setActiveKey(currentKey())
+    if (controlled) return
+    const onHash = () => setHashKey(currentKey())
     window.addEventListener('hashchange', onHash)
     return () => window.removeEventListener('hashchange', onHash)
-  }, [])
+  }, [controlled])
 
-  const activePage = PAGES.find((p) => p.key === activeKey) ?? PAGES[2]
+  const dialItems: ClockDialItem[] = items ?? PAGES
+  const activeKey = controlled ? activeKeyProp : hashKey
+  const activePage = dialItems.find((p) => p.key === activeKey) ?? dialItems[Math.floor(dialItems.length / 2)]
   const aim = aimDeg(activePage.slot)
 
-  const go = (route: string) => (e: React.MouseEvent) => {
+  const go = (page: Page) => (e: React.MouseEvent) => {
     e.preventDefault()
-    window.location.hash = route ? `#/${route}` : '#/'
+    if (controlled) {
+      onSelect?.(page.key)
+      return
+    }
+    window.location.hash = page.route ? `#/${page.route}` : '#/'
   }
 
   return (
-    <nav className={styles.clockMenu} aria-label="Primary">
+    <nav className={styles.clockMenu} aria-label={ariaLabel}>
       <div className={styles.viewport}>
         <ul className={styles.dial}>
-          {PAGES.map((page) => {
-            const isActive = page.key === activeKey
+          {dialItems.map((item) => {
+            const page = item as Page
+            const isActive = item.key === activeKey
             return (
               <li
-                key={page.key}
+                key={item.key}
                 className={styles.item}
                 data-active={isActive}
                 style={
                   {
-                    '--slot-left': `${page.slot.left}%`,
-                    '--slot-top': `${page.slot.top}%`,
+                    '--slot-left': `${item.slot.left}%`,
+                    '--slot-top': `${item.slot.top}%`,
                   } as React.CSSProperties
                 }
               >
-                <a
-                  className={styles.primaryLink}
-                  href={page.route ? `#/${page.route}` : '#/'}
-                  aria-current={isActive ? 'page' : undefined}
-                  onClick={go(page.route)}
-                >
-                  {page.label}
-                </a>
-                {isActive && page.sub.length > 0 && (
+                {controlled ? (
+                  <button
+                    type="button"
+                    className={styles.primaryLink}
+                    aria-current={isActive ? 'true' : undefined}
+                    onClick={go(page)}
+                  >
+                    {item.label}
+                  </button>
+                ) : (
+                  <a
+                    className={styles.primaryLink}
+                    href={page.route ? `#/${page.route}` : '#/'}
+                    aria-current={isActive ? 'page' : undefined}
+                    onClick={go(page)}
+                  >
+                    {item.label}
+                  </a>
+                )}
+                {isActive && item.sub && item.sub.length > 0 && (
                   <ul className={styles.subnavPanel}>
-                    {page.sub.map((label) => (
+                    {item.sub.map((label) => (
                       <li key={label} className={styles.subnavItem}>
                         <button type="button" className={styles.subnavLink}>
                           {label}
@@ -110,7 +147,7 @@ export default function ClockMenu() {
           })}
         </ul>
 
-        {/* Hands point at the active page's slot; --aim drives the rotation. */}
+        {/* Hands point at the active item's slot; --aim drives the rotation. */}
         <div className={styles.clock} aria-hidden="true" style={{ '--aim': aim } as React.CSSProperties}>
           <span className={`${styles.hand} ${styles.handMinute}`} />
           <span className={`${styles.hand} ${styles.handHour}`} />
