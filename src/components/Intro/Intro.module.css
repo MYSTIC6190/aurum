@@ -2,84 +2,122 @@
   position: fixed;
   inset: 0;
   z-index: 999;
+  cursor: pointer;
   overflow: hidden;
+  animation: introFadeIn 0.5s ease both;
+}
+
+@keyframes introFadeIn {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+
+/* Groups everything that fades away at the very end to reveal the real
+   Hero underneath (same video, already playing in sync). */
+.overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 1;
+  transition: opacity 0.9s ease;
+  /* fade starts partway through the reveal, not immediately — see the
+     CROSSFADE_START_MS delay applied via the JS-driven class timing in
+     Intro.tsx (the .overlayFadeOut class itself just defines the target
+     opacity/transition; the *timing* of when it's added is what creates
+     the delay). */
+}
+
+.overlayFadeOut {
+  opacity: 0;
 }
 
 .bg {
   position: absolute;
   inset: 0;
-  background: var(--bg-dark);
-  z-index: 1;
+  /* Slightly lighter + warmer than pure --bg-dark on purpose: the hero
+     video itself is dark, so a pure-black backdrop made the masked
+     letters nearly disappear into it. This keeps the video-through-text
+     reading as clearly brighter than its surroundings. */
+  background: #17140f;
 }
 
-.revealVideo {
+/* The word "AURUM" is the window — video only shows through the clipped
+   text shape (see the SVG clipPath in Intro.tsx). A modest grow here,
+   not a dramatic blow-up — the letters should still read as "AURUM"
+   right up until the fade, not dissolve into abstract motion. */
+.maskedVideoWrap {
   position: fixed;
+  inset: 0;
+  transform-origin: 50% 50%;
+  transition: transform 1.4s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+.maskedVideoZoom {
+  transform: scale(1.6);
+}
+
+.maskedVideo {
+  position: absolute;
   inset: 0;
   width: 100%;
   height: 100%;
   object-fit: cover;
-  z-index: 2;
-  clip-path: inset(43% 38% 43% 38%);
-  transition: clip-path 2s cubic-bezier(0.16, 1, 0.3, 1);
+  /* Lifts the video's own brightness/contrast specifically where it
+     shows through the letters, so it doesn't just read as a slightly
+     lighter smudge of the same dark tone as .bg. */
+  filter: brightness(1.35) contrast(1.15) saturate(1.1);
 }
 
-.revealVideoOpen {
-  clip-path: inset(0% 0% 0% 0%);
-}
-
-.previewBadge {
+/* Thin gold outline drawn directly on top of the masked video during the
+   loading count, so the letterforms have a defined edge even where the
+   video underneath is dark. Fades out fast, right as the reveal begins —
+   see outlineFade in Intro.tsx for why this is deliberately NOT synced
+   with the rest of the UI. */
+.outline {
   position: fixed;
-  top: 50%;
-  left: 50%;
-  transform: translate(calc(-50% + 26vw), 0);
-  z-index: 3;
-  background: var(--color-gold);
-  color: var(--bg-dark);
-  font-family: var(--font-body);
-  font-size: 11px;
-  font-weight: 600;
-  letter-spacing: var(--tracking-caps);
-  text-transform: uppercase;
-  padding: 6px 14px;
-  transition: opacity 0.4s ease;
-}
-
-.previewBadgeHide {
-  opacity: 0;
+  inset: 0;
+  z-index: 2;
   pointer-events: none;
+  transition: opacity 0.35s ease;
 }
 
-.content {
-  position: relative;
-  z-index: 4;
-  height: 100%;
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  justify-content: center;
-  transition: transform 1.6s cubic-bezier(0.16, 1, 0.3, 1);
-}
-
-.contentSettle {
-  transform: translate(calc(-50vw + 64px), calc(-50vh + 40px)) scale(0.22);
+.outline text {
+  fill: none;
+  stroke: var(--color-gold);
+  stroke-width: 0.6px;
+  paint-order: stroke;
 }
 
 .mark {
+  position: fixed;
+  left: 50%;
+  /* Sits just above where the clipped "AURUM" text is vertically
+     centered — nudge if it doesn't line up once seen live, this is a
+     visual-only estimate. */
+  top: calc(50% - 15vw - 60px);
+  transform: translateX(-50%);
+  z-index: 2;
   width: 44px;
   height: 44px;
-  margin-bottom: var(--space-2);
-  flex-shrink: 0;
+  pointer-events: none;
+  transition: opacity 0.9s ease;
 }
 
-.wordmark {
-  font-family: var(--font-display);
-  font-weight: 300;
-  font-size: clamp(48px, 8vw, 110px);
-  letter-spacing: 0.02em;
-  color: var(--color-parchment);
-  margin: 0;
-  line-height: 1;
-  white-space: nowrap;
+.mark svg {
+  width: 100%;
+  height: 100%;
+}
+
+.lower {
+  position: fixed;
+  left: 50%;
+  top: calc(50% + 10vw + 20px);
+  transform: translateX(-50%);
+  z-index: 2;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  transition: opacity 0.9s ease;
+  pointer-events: none;
 }
 
 .subtitle {
@@ -88,16 +126,14 @@
   letter-spacing: var(--tracking-caps);
   text-transform: uppercase;
   color: var(--color-gold);
-  margin-top: var(--space-2);
-  transition: opacity 0.4s ease;
+  margin: 0;
 }
 
 .rule {
   width: 1px;
-  height: 48px;
+  height: 40px;
   background: var(--border-on-dark);
-  margin: var(--space-4) 0;
-  transition: opacity 0.4s ease;
+  margin: var(--space-3) 0;
 }
 
 .counter {
@@ -109,18 +145,34 @@
   margin: 0;
   min-width: 2ch;
   text-align: center;
-  transition: opacity 0.4s ease;
 }
 
 .hide {
   opacity: 0;
 }
 
+.previewBadge {
+  position: fixed;
+  top: 50%;
+  right: var(--space-5);
+  transform: translateY(-50%);
+  z-index: 2;
+  background: var(--color-gold);
+  color: var(--bg-dark);
+  font-family: var(--font-body);
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: var(--tracking-caps);
+  text-transform: uppercase;
+  padding: 6px 14px;
+  transition: opacity 0.9s ease;
+}
+
 .skip {
   position: absolute;
   right: var(--space-4);
   bottom: var(--space-4);
-  z-index: 4;
+  z-index: 2;
   background: none;
   border: none;
   font-family: var(--font-body);
@@ -130,7 +182,7 @@
   color: var(--border-on-dark);
   cursor: pointer;
   padding: var(--space-2);
-  transition: opacity 0.4s ease, color 0.2s ease;
+  transition: color 0.2s ease, opacity 0.9s ease;
 }
 
 .skip:hover {
@@ -138,17 +190,19 @@
 }
 
 @media (prefers-reduced-motion: reduce) {
-  .content,
-  .revealVideo {
+  .overlay,
+  .outline,
+  .maskedVideoWrap,
+  .mark,
+  .lower,
+  .previewBadge,
+  .skip {
     transition: none;
   }
 }
 
 @media (max-width: 640px) {
-  .revealVideo {
-    clip-path: inset(45% 15% 45% 15%);
-  }
   .previewBadge {
-    transform: translate(calc(-50% + 60px), 0);
+    right: var(--space-3);
   }
 }
