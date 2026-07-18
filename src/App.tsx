@@ -17,7 +17,7 @@ import { CategoryProvider } from './context/CategoryContext'
 import { useLenis } from './hooks/useLenis'
 
 // Make sure to import IntroOverlay if it's not already in your file
-// import IntroOverlay from './components/Intro/IntroOverlay'
+import IntroOverlay from './components/Intro/IntroOverlay'
 
 // Merged all phases from both branches
 type BootPhase = 'typography' | 'preloader' | 'unveiling' | 'ready'
